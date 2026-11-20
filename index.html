@@ -105,9 +105,7 @@
     }
 
     @keyframes blink {
-      50% {
-        opacity: 0;
-      }
+      50% { opacity: 0; }
     }
 
     textarea {
@@ -143,24 +141,6 @@
       transition: 0.25s ease;
     }
 
-    .generate-btn {
-      width: 100%;
-      margin-top: 16px;
-      padding: 15px;
-      background: #240000;
-      color: var(--red);
-      border: 1px solid var(--red);
-      border-radius: 7px;
-      font-size: 15px;
-      letter-spacing: 2px;
-    }
-
-    .generate-btn:hover:not(:disabled) {
-      background: var(--dark-red);
-      color: white;
-      box-shadow: 0 0 20px rgba(255, 26, 26, 0.55);
-    }
-
     button:focus-visible {
       outline: 2px solid white;
       outline-offset: 4px;
@@ -171,16 +151,35 @@
       cursor: not-allowed;
     }
 
+    .buttons {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 16px;
+    }
+
+    .action-btn {
+      padding: 15px 8px;
+      background: #240000;
+      color: var(--red);
+      border: 1px solid var(--red);
+      border-radius: 7px;
+      font-size: 14px;
+      letter-spacing: 1px;
+    }
+
+    .action-btn:hover:not(:disabled) {
+      background: var(--dark-red);
+      color: white;
+      box-shadow: 0 0 20px rgba(255, 26, 26, 0.55);
+    }
+
     .error {
       color: #ff3333;
       font-size: 13px;
       margin-top: 10px;
       text-align: center;
       min-height: 0;
-    }
-
-    .error:not(:empty) {
-      min-height: 18px;
     }
 
     .result {
@@ -208,6 +207,14 @@
       }
     }
 
+    .result-label {
+      color: #ff7777;
+      font-size: 11px;
+      letter-spacing: 2px;
+      margin-bottom: 10px;
+      text-align: center;
+    }
+
     .key-row {
       display: flex;
       align-items: center;
@@ -219,9 +226,11 @@
       min-width: 0;
       overflow-wrap: anywhere;
       color: var(--red);
-      font-size: clamp(16px, 4vw, 22px);
-      letter-spacing: 3px;
+      font-size: 15px;
+      line-height: 1.5;
       text-shadow: 0 0 10px red;
+      white-space: pre-wrap;
+      word-break: break-word;
     }
 
     .copy-btn {
@@ -245,6 +254,10 @@
       h1 {
         letter-spacing: 2px;
         margin-bottom: 22px;
+      }
+
+      .buttons {
+        grid-template-columns: 1fr;
       }
 
       .key-row {
@@ -279,17 +292,19 @@
 
     <textarea
       id="inputText"
-      placeholder="Enter text..."
-      aria-label="Enter text to generate a key"
+      placeholder="Enter text or paste a key..."
+      aria-label="Enter text or paste a key"
     ></textarea>
 
-    <button
-      class="generate-btn"
-      id="generateBtn"
-      type="button"
-    >
-      GENERATE KEY
-    </button>
+    <div class="buttons">
+      <button class="action-btn" id="generateBtn" type="button">
+        GENERATE KEY
+      </button>
+
+      <button class="action-btn" id="decodeBtn" type="button">
+        DECODE KEY
+      </button>
+    </div>
 
     <p class="error" id="errorMessage" role="alert"></p>
 
@@ -297,16 +312,14 @@
       class="result"
       id="resultArea"
       aria-live="polite"
-      aria-label="Generated key"
+      aria-label="Result"
     >
+      <p class="result-label" id="resultLabel">GENERATED KEY</p>
+
       <div class="key-row">
         <strong id="generatedKey"></strong>
 
-        <button
-          class="copy-btn"
-          id="copyBtn"
-          type="button"
-        >
+        <button class="copy-btn" id="copyBtn" type="button">
           COPY
         </button>
       </div>
@@ -319,47 +332,55 @@
 
     const inputText = document.getElementById("inputText");
     const generateBtn = document.getElementById("generateBtn");
+    const decodeBtn = document.getElementById("decodeBtn");
     const errorMessage = document.getElementById("errorMessage");
     const resultArea = document.getElementById("resultArea");
     const generatedKey = document.getElementById("generatedKey");
+    const resultLabel = document.getElementById("resultLabel");
     const copyBtn = document.getElementById("copyBtn");
 
-    const CHARACTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    // Convert normal text into Base64.
+    function encodeText(text) {
+      const bytes = new TextEncoder().encode(text);
 
-    async function generateHashKey(text) {
-      const data = new TextEncoder().encode(text);
+      let binary = "";
 
-      const hashBuffer = await crypto.subtle.digest(
-        "SHA-256",
-        data
+      for (const byte of bytes) {
+        binary += String.fromCharCode(byte);
+      }
+
+      return btoa(binary);
+    }
+
+    // Convert Base64 back into normal text.
+    function decodeText(encoded) {
+      const binary = atob(encoded.trim());
+
+      const bytes = Uint8Array.from(
+        binary,
+        character => character.charCodeAt(0)
       );
 
-      const hashArray = new Uint8Array(hashBuffer);
-
-      let key = "";
-
-      for (let i = 0; i < 12; i++) {
-        key += CHARACTERS[
-          hashArray[i] % CHARACTERS.length
-        ];
-      }
-
-      return key;
+      return new TextDecoder("utf-8", {
+        fatal: true
+      }).decode(bytes);
     }
 
-    function randomKey() {
-      let result = "";
-
-      for (let i = 0; i < 12; i++) {
-        result += CHARACTERS[
-          Math.floor(Math.random() * CHARACTERS.length)
-        ];
-      }
-
-      return result;
+    function showResult(value, label) {
+      generatedKey.textContent = value;
+      resultLabel.textContent = label;
+      resultArea.classList.add("visible");
+      copyBtn.textContent = "COPY";
+      errorMessage.textContent = "";
     }
 
-    generateBtn.addEventListener("click", async () => {
+    function setButtonsDisabled(disabled) {
+      generateBtn.disabled = disabled;
+      decodeBtn.disabled = disabled;
+    }
+
+    // Generate a reversible key.
+    generateBtn.addEventListener("click", () => {
       const text = inputText.value;
 
       errorMessage.textContent = "";
@@ -371,60 +392,47 @@
         return;
       }
 
-      if (!window.crypto || !crypto.subtle) {
-        errorMessage.textContent =
-          "Key generation is unavailable in this browser.";
-        return;
-      }
-
-      generateBtn.disabled = true;
-      copyBtn.textContent = "COPY";
-      resultArea.classList.add("visible");
-
       try {
-        const finalKey = await generateHashKey(text);
-
-        const reducedMotion = window.matchMedia(
-          "(prefers-reduced-motion: reduce)"
-        ).matches;
-
-        if (reducedMotion) {
-          generatedKey.textContent = finalKey;
-        } else {
-          const startTime = performance.now();
-
-          while (performance.now() - startTime < 500) {
-            generatedKey.textContent = randomKey();
-
-            await new Promise(resolve =>
-              setTimeout(resolve, 50)
-            );
-          }
-
-          generatedKey.textContent = finalKey;
-        }
-
+        const key = encodeText(text);
+        showResult(key, "GENERATED KEY");
       } catch (error) {
-        resultArea.classList.remove("visible");
-
-        errorMessage.textContent =
-          "Could not generate a key. Please try again.";
-
+        errorMessage.textContent = "Could not generate the key.";
         console.error(error);
-
-      } finally {
-        generateBtn.disabled = false;
       }
     });
 
-    copyBtn.addEventListener("click", async () => {
-      const key = generatedKey.textContent;
+    // Decode a previously generated key.
+    decodeBtn.addEventListener("click", () => {
+      const key = inputText.value;
 
-      if (!key) return;
+      errorMessage.textContent = "";
+
+      if (!key.trim()) {
+        errorMessage.textContent = "Paste a key first.";
+        resultArea.classList.remove("visible");
+        inputText.focus();
+        return;
+      }
 
       try {
-        await navigator.clipboard.writeText(key);
+        const decoded = decodeText(key);
+        showResult(decoded, "DECODED TEXT");
+      } catch (error) {
+        resultArea.classList.remove("visible");
+        errorMessage.textContent =
+          "Invalid key. Make sure you pasted a valid Text To Key key.";
+        console.error(error);
+      }
+    });
 
+    // Copy the current result.
+    copyBtn.addEventListener("click", async () => {
+      const value = generatedKey.textContent;
+
+      if (!value) return;
+
+      try {
+        await navigator.clipboard.writeText(value);
         copyBtn.textContent = "COPIED";
 
         setTimeout(() => {
@@ -433,9 +441,8 @@
 
       } catch (error) {
         copyBtn.textContent = "COPY FAILED";
-
         errorMessage.textContent =
-          "Select the key and copy it manually.";
+          "Select the result and copy it manually.";
 
         setTimeout(() => {
           copyBtn.textContent = "COPY";
