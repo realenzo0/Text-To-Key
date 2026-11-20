@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0a0000">
+<title>Text To Key</title>
+
+<style>
+:root {
+    --bg: #0a0000;
+    --red: #ff1a1a;
+    --dark-red: #b30000;
+    --text: #ffcccc;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Courier New", monospace;
+    overflow-x: hidden;
+}
+
+/* CRT scanline effect */
+body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 10;
+    background: repeating-linear-gradient(
+        to bottom,
+        transparent 0px,
+        rgba(255, 0, 0, 0.035) 1px,
+        transparent 3px
+    );
+}
+
+/* Background glow */
+body::after {
+    content: "";
+    position: fixed;
+    width: 500px;
+    height: 500px;
+    background: rgba(179, 0, 0, 0.08);
+    filter: blur(120px);
+    border-radius: 50%;
+    pointer-events: none;
+}
+
+.container {
+    position: relative;
+    z-index: 2;
+    width: 100%;
+    max-width: 650px;
+    padding: 40px 30px;
+    background: rgba(15, 0, 0, 0.95);
+    border: 1px solid var(--dark-red);
+    border-radius: 12px;
+    box-shadow:
+        0 0 15px rgba(255, 0, 0, 0.25),
+        0 0 45px rgba(179, 0, 0, 0.12),
+        inset 0 0 20px rgba(179, 0, 0, 0.08);
+}
+
+h1 {
+    text-align: center;
+    color: var(--red);
+    font-size: clamp(32px, 7vw, 52px);
+    margin-bottom: 35px;
+    letter-spacing: 5px;
+    text-shadow:
+        0 0 5px var(--red),
+        0 0 15px var(--red),
+        0 0 30px var(--dark-red);
+    animation: flicker 3s infinite;
+}
+
+@keyframes flicker {
+    0%, 18%, 22%, 25%, 53%, 57%, 100% {
+        opacity: 1;
+    }
+    20%, 24%, 55% {
+        opacity: 0.75;
+    }
+}
+
+.cursor {
+    display: inline-block;
+    width: 10px;
+    height: 1em;
+    background: var(--red);
+    vertical-align: middle;
+    margin-left: 5px;
+    animation: blink 0.8s steps(2) infinite;
+}
+
+@keyframes blink {
+    50% {
+        opacity: 0;
+    }
+}
+
+textarea {
+    display: block;
+    width: 100%;
+    min-height: 160px;
+    resize: vertical;
+    padding: 18px;
+    background: #100000;
+    color: var(--red);
+    border: 1px solid var(--dark-red);
+    border-radius: 7px;
+    outline: none;
+    font-family: inherit;
+    font-size: 15px;
+    line-height: 1.6;
+    transition: 0.25s;
+}
+
+textarea::placeholder {
+    color: #853333;
+}
+
+textarea:focus {
+    border-color: var(--red);
+    box-shadow: 0 0 12px rgba(255, 26, 26, 0.45);
+}
+
+button {
+    font-family: inherit;
+    cursor: pointer;
+    font-weight: bold;
+    transition: 0.25s ease;
+}
+
+.generate-btn {
+    width: 100%;
+    margin-top: 20px;
+    padding: 16px;
+    background: #240000;
+    color: var(--red);
+    border: 1px solid var(--red);
+    border-radius: 7px;
+    font-size: 16px;
+    letter-spacing: 2px;
+}
+
+.generate-btn:hover:not(:disabled) {
+    background: var(--dark-red);
+    color: white;
+    box-shadow: 0 0 20px rgba(255, 26, 26, 0.55);
+}
+
+button:focus-visible {
+    outline: 2px solid white;
+    outline-offset: 4px;
+}
+
+button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.error {
+    color: #ff3333;
+    font-size: 13px;
+    margin-top: 12px;
+    min-height: 18px;
+    text-shadow: 0 0 8px red;
+}
+
+.result {
+    display: none;
+    margin-top: 25px;
+    padding: 20px;
+    background: #100000;
+    border: 1px solid var(--dark-red);
+    border-radius: 7px;
+    animation: appear 0.4s ease;
+}
+
+.result.visible {
+    display: block;
+}
+
+@keyframes appear {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.result-label {
+    display: block;
+    color: #ff5555;
+    font-size: 12px;
+    margin-bottom: 12px;
+    letter-spacing: 2px;
+}
+
+.key-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+#generatedKey {
+    flex: 1;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    color: var(--red);
+    font-size: clamp(16px, 4vw, 23px);
+    letter-spacing: 3px;
+    text-shadow: 0 0 10px red;
+}
+
+.copy-btn {
+    padding: 11px 15px;
+    color: white;
+    background: #4a0000;
+    border: 1px solid var(--red);
+    border-radius: 5px;
+}
+
+.copy-btn:hover {
+    background: var(--red);
+    box-shadow: 0 0 12px red;
+}
+
+.status {
+    color: #aa5555;
+    text-align: center;
+    font-size: 11px;
+    margin-top: 30px;
+    letter-spacing: 2px;
+}
+
+@media (max-width: 480px) {
+    .container {
+        padding: 28px 18px;
+    }
+
+    h1 {
+        letter-spacing: 3px;
+        margin-bottom: 25px;
+    }
+
+    .key-row {
+        flex-wrap: wrap;
+    }
+
+    #generatedKey {
+        width: 100%;
+    }
+
+    .copy-btn {
+        width: 100%;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+</style>
+</head>
+
+<body>
+
+<main class="container">
+
+    <h1>
+        Text To Key<span class="cursor"></span>
+    </h1>
+
+    <textarea
+        id="inputText"
+        placeholder="> enter text here..."
+        aria-label="Enter text to generate a key"
+    ></textarea>
+
+    <button
+        class="generate-btn"
+        id="generateBtn"
+        type="button"
+    >
+        [ GENERATE KEY ]
+    </button>
+
+    <p class="error" id="errorMessage" role="alert"></p>
+
+    <section
+        class="result"
+        id="resultArea"
+        aria-live="polite"
+        aria-label="Generated key"
+    >
+        <span class="result-label">GENERATED KEY:</span>
+
+        <div class="key-row">
+            <strong id="generatedKey"></strong>
+
+            <button
+                class="copy-btn"
+                id="copyBtn"
+                type="button"
+            >
+                Copy
+            </button>
+        </div>
+    </section>
+
+    <p class="status">
+        SYSTEM ONLINE // SHA-256 ENGINE
+    </p>
+
+</main>
+
+<script>
+"use strict";
+
+const inputText = document.getElementById("inputText");
+const generateBtn = document.getElementById("generateBtn");
+const errorMessage = document.getElementById("errorMessage");
+const resultArea = document.getElementById("resultArea");
+const generatedKey = document.getElementById("generatedKey");
+const copyBtn = document.getElementById("copyBtn");
+
+const CHARACTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+
+// Convert SHA-256 digest into a 12-character key.
+async function generateHashKey(text) {
+
+    const encoder = new TextEncoder();
+
+    const data = encoder.encode(text);
+
+    const hashBuffer = await crypto.subtle.digest(
+        "SHA-256",
+        data
+    );
+
+    const hashArray = new Uint8Array(hashBuffer);
+
+    let key = "";
+
+    for (let i = 0; i < 12; i++) {
+
+        const index = hashArray[i] % CHARACTERS.length;
+
+        key += CHARACTERS[index];
+    }
+
+    return key;
+}
+
+// Generate temporary scrambled characters.
+function randomKey() {
+
+    let result = "";
+
+    for (let i = 0; i < 12; i++) {
+
+        const randomIndex = Math.floor(
+            Math.random() * CHARACTERS.length
+        );
+
+        result += CHARACTERS[randomIndex];
+    }
+
+    return result;
+}
+
+// Generate button handler.
+generateBtn.addEventListener("click", async () => {
+
+    const text = inputText.value;
+
+    errorMessage.textContent = "";
+
+    if (!text.trim()) {
+
+        errorMessage.textContent =
+            "ERROR: no input detected";
+
+        resultArea.classList.remove("visible");
+
+        inputText.focus();
+
+        return;
+    }
+
+    if (!window.crypto || !crypto.subtle) {
+
+        errorMessage.textContent =
+            "ERROR: SHA-256 unavailable. Use a supported browser.";
+
+        return;
+    }
+
+    generateBtn.disabled = true;
+    copyBtn.textContent = "Copy";
+
+    resultArea.classList.add("visible");
+
+    try {
+
+        // Calculate the real key first.
+        const finalKey = await generateHashKey(text);
+
+        // Scramble animation.
+        const reducedMotion = window.matchMedia(
+            "(prefers-reduced-motion: reduce)"
+        ).matches;
+
+        if (reducedMotion) {
+
+            generatedKey.textContent = finalKey;
+
+        } else {
+
+            const startTime = performance.now();
+
+            while (performance.now() - startTime < 500) {
+
+                generatedKey.textContent = randomKey();
+
+                await new Promise(resolve =>
+                    setTimeout(resolve, 50)
+                );
+            }
+
+            generatedKey.textContent = finalKey;
+        }
+
+    } catch (error) {
+
+        resultArea.classList.remove("visible");
+
+        errorMessage.textContent =
+            "ERROR: key generation failed.";
+
+        console.error(error);
+
+    } finally {
+
+        generateBtn.disabled = false;
+    }
+});
+
+// Copy generated key.
+copyBtn.addEventListener("click", async () => {
+
+    const key = generatedKey.textContent;
+
+    if (!key) return;
+
+    try {
+
+        await navigator.clipboard.writeText(key);
+
+        copyBtn.textContent = "Copied!";
+
+        setTimeout(() => {
+            copyBtn.textContent = "Copy";
+        }, 1500);
+
+    } catch (error) {
+
+        copyBtn.textContent = "Copy failed";
+
+        errorMessage.textContent =
+            "ERROR: clipboard unavailable. Select and copy the key manually.";
+
+        console.error(error);
+
+        setTimeout(() => {
+            copyBtn.textContent = "Copy";
+        }, 1500);
+    }
+});
+
+</script>
+
+</body>
+</html>
+
+2. Project architecture
+
+Text-To-Key/
+│
+└── index.html
+    ├── HTML
+    │   ├── Main container
+    │   ├── Text input
+    │   ├── Generate button
+    │   ├── Result area
+    │   └── Copy button
+    │
+    ├── CSS
+    │   ├── Hacker theme
+    │   ├── CRT scanlines
+    │   ├── Glowing effects
+    │   ├── Animations
+    │   └── Responsive layout
+    │
+    └── JavaScript
+        ├── SHA-256 hashing
+        ├── Key conversion
+        ├── Scramble animation
+        ├── Empty input validation
+        └── Clipboard functionality
+
+3. Setup instructions
+
+Create a folder named Text-To-Key.
+
+Create a file named index.html.
+
+Paste the complete code above.
+
+Save the file.
+
+Open index.html in a modern browser.
+
+<badge color="success">NO INSTALLATION REQUIRED</badge>
+
+Node.js is not required because this application runs entirely in the browser.
+
+Important browser notes:
+
+SHA-256 uses the native Web Crypto API.
+
+Clipboard access requires browser permission and a supported secure context.
+
+If either API is unavailable, the application displays an error instead of silently failing.
+
+4. Key generation logic
+
+<box border radius="lg" padding={3} gap={2}>
+  <title size="lg" color="#ff5264">SHA-256 PIPELINE</title>
+  <box background="surface-secondary" radius="md" padding={2} align="center">
+    **USER TEXT**
+  </box>
+  <icon name="arrow-down" color="#ff5264"/>
+  <box background="surface-secondary" radius="md" padding={2} align="center">
+    **UTF-8 ENCODING**
+  </box>
+  <icon name="arrow-down" color="#ff5264"/>
+  <box background="surface-secondary" radius="md" padding={2} align="center">
+    **SHA-256 HASH**
+  </box>
+  <icon name="arrow-down" color="#ff5264"/>
+  <box background="surface-secondary" radius="md" padding={2} align="center">
+    **12 CHARACTERS FROM A-Z AND 0-9**
+  </box>
+  <icon name="arrow-down" color="#ff5264"/>
+  <box background="#260707" radius="md" padding={3} align="center">
+    <title color="#ff3333" size="xl">GENERATED KEY</title>
+    <text color="#ff7777" weight="bold">XXXXXXXXXXXX</text>
+  </box>
+</box>
